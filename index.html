@@ -42,6 +42,83 @@
   }
 
 
+  .login-screen{
+    position:fixed;
+    inset:0;
+    background:var(--paper);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:20px;
+    z-index:100;
+  }
+  .login-box{
+    width:100%;
+    max-width:320px;
+    background:#fff;
+    border:2px solid var(--line);
+    border-radius:12px;
+    padding:24px 20px;
+  }
+  .login-box h2{
+    margin:0 0 16px;
+    font-size:1.1rem;
+  }
+  .login-box label{
+    display:block;
+    font-size:.72rem;
+    font-weight:700;
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    color:var(--muted);
+    margin-bottom:6px;
+  }
+  .login-box input{
+    width:100%;
+    padding:10px 12px;
+    font-size:.85rem;
+    border:1.5px solid var(--line);
+    border-radius:8px;
+    background:var(--paper);
+    color:var(--ink);
+    margin-bottom:12px;
+  }
+  .login-box input:focus{outline:2px solid var(--go); outline-offset:1px;}
+  .login-error{
+    color:var(--warn);
+    font-size:.78rem;
+    font-weight:600;
+    margin-top:10px;
+    min-height:16px;
+  }
+
+  .setup{
+    margin:16px 20px;
+    padding:14px 16px;
+    border:1.5px dashed var(--line);
+    border-radius:10px;
+    background:#fff;
+  }
+  .setup label{
+    display:block;
+    font-size:.72rem;
+    font-weight:700;
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    color:var(--muted);
+    margin-bottom:6px;
+  }
+  .setup input{
+    width:100%;
+    padding:10px 12px;
+    font-size:.85rem;
+    border:1.5px solid var(--line);
+    border-radius:8px;
+    background:var(--paper);
+    color:var(--ink);
+  }
+  .setup input:focus{outline:2px solid var(--go); outline-offset:1px;}
+
   #reader-wrap{
     margin:16px 20px 0;
     border:2px solid var(--line);
@@ -156,10 +233,31 @@
 </head>
 <body>
 
+<div id="loginScreen" class="login-screen">
+  <div class="login-box">
+    <h2>Sign in</h2>
+    <label for="loginUser">Username</label>
+    <input id="loginUser" type="text" autocomplete="username">
+    <label for="loginPass">Password</label>
+    <input id="loginPass" type="password" autocomplete="current-password">
+    <button class="primary" id="loginBtn" style="margin-top:10px;width:100%;">Sign in</button>
+    <div id="loginError" class="login-error"></div>
+  </div>
+</div>
+
+<div id="appScreen" style="display:none;">
+
 <header>
   <h1>Barcode → Sheet</h1>
   <p>Scan with your camera. Every code gets added as a new row.</p>
 </header>
+
+<div class="setup">
+  <label for="stationInput">Station</label>
+  <input id="stationInput" type="text" placeholder="e.g. Station 3" autocomplete="off">
+  <label for="driverInput" style="margin-top:10px;">Driver</label>
+  <input id="driverInput" type="text" placeholder="e.g. John Smith" autocomplete="off">
+</div>
 
 <div id="reader-wrap">
   <div id="reader"></div>
@@ -186,15 +284,73 @@
 
 <footer>Works in Chrome / Safari on phones. Needs camera permission (camera access requires https — GitHub Pages provides this automatically).</footer>
 
+</div>
+
 <script>
   // Paste your Google Apps Script Web App URL here:
   const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxjPEhzQGAFHFK-Njpo8cPGjJRPV_ZLa3WGQ29KOAWrCTmRO2KWydrtnSK89IChw7YE/exec";
+
+  // Simple login, verified against a "Users" tab in your Google Sheet
+  // via the Apps Script doGet endpoint. NOTE: credentials still travel
+  // in plain text — fine for keeping a small team organized, not for
+  // protecting sensitive data.
+
+  const loginScreen = document.getElementById('loginScreen');
+  const appScreen = document.getElementById('appScreen');
+  const loginUser = document.getElementById('loginUser');
+  const loginPass = document.getElementById('loginPass');
+  const loginBtn = document.getElementById('loginBtn');
+  const loginError = document.getElementById('loginError');
+
+  async function tryLogin() {
+    const u = loginUser.value.trim();
+    const p = loginPass.value;
+
+    if (!u || !p) {
+      loginError.textContent = 'Enter both username and password.';
+      return;
+    }
+
+    loginBtn.disabled = true;
+    loginError.textContent = 'Checking…';
+
+    try {
+      const url = WEB_APP_URL + '?action=login'
+        + '&username=' + encodeURIComponent(u)
+        + '&password=' + encodeURIComponent(p);
+      const res = await fetch(url);
+      const data = await res.json();
+
+      if (data.valid) {
+        sessionStorage.setItem('scannerLoggedIn', '1');
+        loginScreen.style.display = 'none';
+        appScreen.style.display = 'block';
+      } else {
+        loginError.textContent = 'Incorrect username or password.';
+      }
+    } catch (err) {
+      loginError.textContent = 'Could not verify login — check connection.';
+    } finally {
+      loginBtn.disabled = false;
+    }
+  }
+
+  loginBtn.addEventListener('click', tryLogin);
+  loginPass.addEventListener('keydown', (e) => { if (e.key === 'Enter') tryLogin(); });
+
+  // Stay logged in for this browser tab session
+  if (sessionStorage.getItem('scannerLoggedIn') === '1') {
+    loginScreen.style.display = 'none';
+    appScreen.style.display = 'block';
+  }
 
   const startBtn = document.getElementById('startBtn');
   const stopBtn = document.getElementById('stopBtn');
   const statusEl = document.getElementById('scanStatus');
   const entriesEl = document.getElementById('entries');
   const countLabel = document.getElementById('countLabel');
+  const stationInput = document.getElementById('stationInput');
+  const driverInput = document.getElementById('driverInput');
 
   let html5QrCode;
   let lastCode = null;
@@ -235,7 +391,12 @@
         method: 'POST',
         mode: 'no-cors',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ code: entry.code, timestamp: entry.timestamp })
+        body: JSON.stringify({
+          code: entry.code,
+          timestamp: entry.timestamp,
+          station: stationInput.value.trim(),
+          driver: driverInput.value.trim()
+        })
       });
       entry.status = 'sent';
       setStatus('Added "' + entry.code + '" to sheet ✓', 'ok');
