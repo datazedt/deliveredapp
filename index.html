@@ -40,33 +40,7 @@
     font-size:.8rem;
     color:var(--muted);
   }
-  .setup{
-    margin:16px 20px;
-    padding:14px 16px;
-    border:1.5px dashed var(--line);
-    border-radius:10px;
-    background:#fff;
-  }
-  .setup label{
-    display:block;
-    font-size:.72rem;
-    font-weight:700;
-    text-transform:uppercase;
-    letter-spacing:.06em;
-    color:var(--muted);
-    margin-bottom:6px;
-  }
-  .setup input{
-    width:100%;
-    padding:10px 12px;
-    font-size:.85rem;
-    border:1.5px solid var(--line);
-    border-radius:8px;
-    background:var(--paper);
-    color:var(--ink);
-  }
-  .setup input:focus{outline:2px solid var(--go); outline-offset:1px;}
-  .setup .hint{font-size:.72rem; color:var(--muted); margin-top:8px; line-height:1.4;}
+
 
   #reader-wrap{
     margin:16px 20px 0;
@@ -187,12 +161,6 @@
   <p>Scan with your camera. Every code gets added as a new row.</p>
 </header>
 
-<div class="setup">
-  <label for="webAppUrl">Google Apps Script Web App URL</label>
-  <input id="webAppUrl" type="url" placeholder="https://script.google.com/macros/s/AKfycbxjPEhzQGAFHFK-Njpo8cPGjJRPV_ZLa3WGQ29KOAWrCTmRO2KWydrtnSK89IChw7YE/exec" autocomplete="off">
-  <div class="hint">Paste the URL you get after deploying the Apps Script (see instructions below the page). It's saved on this device only.</div>
-</div>
-
 <div id="reader-wrap">
   <div id="reader"></div>
 </div>
@@ -203,6 +171,11 @@
   <button class="secondary" id="stopBtn" disabled>Stop</button>
 </div>
 
+<div class="controls">
+  <button class="secondary" id="uploadBtn" style="flex:1;">Scan from photo</button>
+  <input type="file" id="fileInput" accept="image/*" style="display:none;">
+</div>
+
 <div class="log">
   <div class="log-head">
     <span>Scanned</span>
@@ -211,21 +184,17 @@
   <ul class="entries" id="entries"></ul>
 </div>
 
-<footer>Works in Chrome / Safari on phones. Needs camera permission.</footer>
+<footer>Works in Chrome / Safari on phones. Needs camera permission (camera access requires https — GitHub Pages provides this automatically).</footer>
 
 <script>
-  const urlInput = document.getElementById('webAppUrl');
+  // Paste your Google Apps Script Web App URL here:
+  const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxjPEhzQGAFHFK-Njpo8cPGjJRPV_ZLa3WGQ29KOAWrCTmRO2KWydrtnSK89IChw7YE/exec";
+
   const startBtn = document.getElementById('startBtn');
   const stopBtn = document.getElementById('stopBtn');
   const statusEl = document.getElementById('scanStatus');
   const entriesEl = document.getElementById('entries');
   const countLabel = document.getElementById('countLabel');
-
-  // Restore saved URL
-  urlInput.value = localStorage.getItem('barcodeWebAppUrl') || '';
-  urlInput.addEventListener('change', () => {
-    localStorage.setItem('barcodeWebAppUrl', urlInput.value.trim());
-  });
 
   let html5QrCode;
   let lastCode = null;
@@ -252,11 +221,11 @@
   }
 
   async function sendToSheet(entry) {
-    const url = urlInput.value.trim();
-    if (!url) {
+    const url = WEB_APP_URL;
+    if (!url || url.includes('https://script.google.com/macros/s/AKfycbxjPEhzQGAFHFK-Njpo8cPGjJRPV_ZLa3WGQ29KOAWrCTmRO2KWydrtnSK89IChw7YE/exec')) {
       entry.status = 'fail';
       render();
-      setStatus('No Web App URL set — paste it above first.', 'err');
+      setStatus('No Web App URL set in the code yet.', 'err');
       return;
     }
     try {
@@ -294,6 +263,40 @@
 
     if (navigator.vibrate) navigator.vibrate(80);
   }
+
+  const uploadBtn = document.getElementById('uploadBtn');
+  const fileInput = document.getElementById('fileInput');
+
+  uploadBtn.addEventListener('click', () => fileInput.click());
+
+  fileInput.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // If the live camera is running, stop it first — both scanners
+    // share the same #reader element.
+    if (html5QrCode && !stopBtn.disabled) {
+      await html5QrCode.stop();
+      html5QrCode.clear();
+      stopBtn.disabled = true;
+      startBtn.disabled = false;
+    }
+
+    setStatus('Reading photo…');
+
+    // Use a separate, throwaway scanner instance for file scans so it
+    // doesn't clash with a possibly-running camera scanner.
+    const fileScanner = new Html5Qrcode('reader');
+    try {
+      const decodedText = await fileScanner.scanFile(file, false);
+      onScanSuccess(decodedText);
+    } catch (err) {
+      setStatus('No barcode found in that photo.', 'err');
+    } finally {
+      try { fileScanner.clear(); } catch (_) {}
+      fileInput.value = ''; // allow re-selecting the same file later
+    }
+  });
 
   startBtn.addEventListener('click', async () => {
     startBtn.disabled = true;
