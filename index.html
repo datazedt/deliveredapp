@@ -222,7 +222,7 @@
 
   async function sendToSheet(entry) {
     const url = WEB_APP_URL;
-    if (!url || url.includes("PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE")) {
+    if (!url || url.includes('PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE')) {
       entry.status = 'fail';
       render();
       setStatus('No Web App URL set in the code yet.', 'err');
