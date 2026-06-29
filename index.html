@@ -1,61 +1,330 @@
-
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Barcode Scanner</title>
-  <script src="https://unpkg.com/html5-qrcode"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Barcode → Sheet</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+<style>
+  :root{
+    --ink:#1b1f1a;
+    --paper:#f6f4ee;
+    --line:#1b1f1a;
+    --go:#2f5d3a;
+    --go-dark:#234a2c;
+    --warn:#b5482a;
+    --muted:#6b6f64;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+  }
+  header{
+    padding:18px 20px 14px;
+    border-bottom:2px solid var(--line);
+  }
+  header h1{
+    margin:0;
+    font-size:1.15rem;
+    font-weight:700;
+    letter-spacing:.01em;
+  }
+  header p{
+    margin:4px 0 0;
+    font-size:.8rem;
+    color:var(--muted);
+  }
+  .setup{
+    margin:16px 20px;
+    padding:14px 16px;
+    border:1.5px dashed var(--line);
+    border-radius:10px;
+    background:#fff;
+  }
+  .setup label{
+    display:block;
+    font-size:.72rem;
+    font-weight:700;
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    color:var(--muted);
+    margin-bottom:6px;
+  }
+  .setup input{
+    width:100%;
+    padding:10px 12px;
+    font-size:.85rem;
+    border:1.5px solid var(--line);
+    border-radius:8px;
+    background:var(--paper);
+    color:var(--ink);
+  }
+  .setup input:focus{outline:2px solid var(--go); outline-offset:1px;}
+  .setup .hint{font-size:.72rem; color:var(--muted); margin-top:8px; line-height:1.4;}
+
+  #reader-wrap{
+    margin:16px 20px 0;
+    border:2px solid var(--line);
+    border-radius:12px;
+    overflow:hidden;
+    position:relative;
+    background:#000;
+  }
+  #reader{width:100%;}
+  #reader video{width:100% !important; border-radius:0 !important;}
+
+  .scan-status{
+    text-align:center;
+    padding:10px;
+    font-size:.85rem;
+    font-weight:600;
+    min-height:18px;
+  }
+  .scan-status.ok{color:var(--go);}
+  .scan-status.err{color:var(--warn);}
+
+  .controls{
+    display:flex;
+    gap:10px;
+    margin:0 20px 16px;
+  }
+  button{
+    font-family:inherit;
+    border:1.5px solid var(--line);
+    border-radius:8px;
+    padding:11px 14px;
+    font-size:.85rem;
+    font-weight:700;
+    cursor:pointer;
+    background:#fff;
+    color:var(--ink);
+  }
+  button.primary{
+    background:var(--go);
+    border-color:var(--go-dark);
+    color:#fff;
+    flex:1;
+  }
+  button.primary:active{background:var(--go-dark);}
+  button.secondary{flex:1;}
+  button:disabled{opacity:.45; cursor:not-allowed;}
+
+  .log{
+    flex:1;
+    margin:0 20px 20px;
+    border:1.5px solid var(--line);
+    border-radius:10px;
+    background:#fff;
+    overflow:hidden;
+    display:flex;
+    flex-direction:column;
+  }
+  .log-head{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:10px 14px;
+    border-bottom:1px solid #ddd9cb;
+    font-size:.72rem;
+    font-weight:700;
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    color:var(--muted);
+  }
+  .log-head span.count{color:var(--ink);}
+  ul.entries{
+    list-style:none;
+    margin:0;
+    padding:0;
+    max-height:260px;
+    overflow-y:auto;
+  }
+  ul.entries li{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:10px 14px;
+    border-bottom:1px solid #eee9da;
+    font-size:.85rem;
+    gap:10px;
+  }
+  ul.entries li:last-child{border-bottom:none;}
+  .code{font-family:"SF Mono",Menlo,monospace; word-break:break-all;}
+  .pill{
+    font-size:.65rem;
+    font-weight:700;
+    padding:2px 7px;
+    border-radius:20px;
+    white-space:nowrap;
+  }
+  .pill.sent{background:#e3efe2; color:var(--go-dark);}
+  .pill.pending{background:#f1ecda; color:#8a6d1c;}
+  .pill.fail{background:#f6e1da; color:var(--warn);}
+  .empty{
+    padding:24px 14px;
+    text-align:center;
+    color:var(--muted);
+    font-size:.85rem;
+  }
+  footer{
+    text-align:center;
+    font-size:.7rem;
+    color:var(--muted);
+    padding-bottom:14px;
+  }
+</style>
 </head>
+<body>
 
-<body style="text-align:center; font-family:sans-serif;">
-  <h2>Scan Barcode</h2>
+<header>
+  <h1>Barcode → Sheet</h1>
+  <p>Scan with your camera. Every code gets added as a new row.</p>
+</header>
 
-  <div id="reader" style="width:300px; margin:auto;"></div>
+<div class="setup">
+  <label for="webAppUrl">Google Apps Script Web App URL</label>
+  <input id="webAppUrl" type="url" placeholder="https://script.google.com/macros/s/AKfycbxjPEhzQGAFHFK-Njpo8cPGjJRPV_ZLa3WGQ29KOAWrCTmRO2KWydrtnSK89IChw7YE/exec" autocomplete="off">
+  <div class="hint">Paste the URL you get after deploying the Apps Script (see instructions below the page). It's saved on this device only.</div>
+</div>
 
-  <p id="status">Waiting for scan...</p>
+<div id="reader-wrap">
+  <div id="reader"></div>
+</div>
+<div id="scanStatus" class="scan-status"></div>
+
+<div class="controls">
+  <button class="primary" id="startBtn">Start camera</button>
+  <button class="secondary" id="stopBtn" disabled>Stop</button>
+</div>
+
+<div class="log">
+  <div class="log-head">
+    <span>Scanned</span>
+    <span class="count" id="countLabel">0</span>
+  </div>
+  <ul class="entries" id="entries"></ul>
+</div>
+
+<footer>Works in Chrome / Safari on phones. Needs camera permission.</footer>
 
 <script>
-const API_URL = "https://script.google.com/macros/s/AKfycbxiT_eEAHtsa55t5oza1ZIdhMfkS_oabfqLSKmIB9sr-fY7lujtAl1qHy5lPC15_ZrV/exec";
+  const urlInput = document.getElementById('webAppUrl');
+  const startBtn = document.getElementById('startBtn');
+  const stopBtn = document.getElementById('stopBtn');
+  const statusEl = document.getElementById('scanStatus');
+  const entriesEl = document.getElementById('entries');
+  const countLabel = document.getElementById('countLabel');
 
-function onScanSuccess(decodedText) {
-  document.getElementById("status").innerText =
-    "Scanned: " + decodedText;
-
-  // Send to Google Sheet
-  
-fetch(API_URL, {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json"
-  },
-  body: JSON.stringify({
-    barcode: decodedText
-  })
-})
-
-  .then(response => response.json())
-  .then(data => {
-    document.getElementById("status").innerText =
-      "✅ Saved: " + decodedText;
-
-    // Optional: vibrate
-    if (navigator.vibrate) navigator.vibrate(200);
-  })
-  .catch(error => {
-    document.getElementById("status").innerText =
-      "❌ Error saving!";
+  // Restore saved URL
+  urlInput.value = localStorage.getItem('barcodeWebAppUrl') || '';
+  urlInput.addEventListener('change', () => {
+    localStorage.setItem('barcodeWebAppUrl', urlInput.value.trim());
   });
-}
 
-// Start scanner
-const scanner = new Html5QrcodeScanner(
-  "reader",
-  {
-    fps: 10,
-    qrbox: 250
+  let html5QrCode;
+  let lastCode = null;
+  let lastTime = 0;
+  let scans = [];
+
+  function render() {
+    countLabel.textContent = scans.length;
+    if (scans.length === 0) {
+      entriesEl.innerHTML = '<li class="empty" style="display:block;">No scans yet — point the camera at a barcode.</li>';
+      return;
+    }
+    entriesEl.innerHTML = scans.slice().reverse().map(s => `
+      <li>
+        <span class="code">${s.code}</span>
+        <span class="pill ${s.status}">${s.status === 'sent' ? 'Sent' : s.status === 'pending' ? 'Sending…' : 'Failed'}</span>
+      </li>
+    `).join('');
   }
-);
 
-scanner.render(onScanSuccess);
+  function setStatus(msg, type) {
+    statusEl.textContent = msg;
+    statusEl.className = 'scan-status' + (type ? ' ' + type : '');
+  }
+
+  async function sendToSheet(entry) {
+    const url = urlInput.value.trim();
+    if (!url) {
+      entry.status = 'fail';
+      render();
+      setStatus('No Web App URL set — paste it above first.', 'err');
+      return;
+    }
+    try {
+      // no-cors keeps this working without extra Apps Script config,
+      // but means we can't read the response — we assume success.
+      await fetch(url, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ code: entry.code, timestamp: entry.timestamp })
+      });
+      entry.status = 'sent';
+      setStatus('Added "' + entry.code + '" to sheet ✓', 'ok');
+    } catch (e) {
+      entry.status = 'fail';
+      setStatus('Could not reach the sheet. Check the URL / connection.', 'err');
+    }
+    render();
+  }
+
+  function onScanSuccess(decodedText) {
+    const now = Date.now();
+    if (decodedText === lastCode && now - lastTime < 2500) return; // debounce repeats
+    lastCode = decodedText;
+    lastTime = now;
+
+    const entry = {
+      code: decodedText,
+      timestamp: new Date().toISOString(),
+      status: 'pending'
+    };
+    scans.push(entry);
+    render();
+    sendToSheet(entry);
+
+    if (navigator.vibrate) navigator.vibrate(80);
+  }
+
+  startBtn.addEventListener('click', async () => {
+    startBtn.disabled = true;
+    setStatus('Starting camera…');
+    html5QrCode = new Html5Qrcode('reader');
+    try {
+      await html5QrCode.start(
+        { facingMode: 'environment' },
+        { fps: 10, qrbox: { width: 250, height: 150 } },
+        onScanSuccess,
+        () => {} // ignore per-frame "not found" errors
+      );
+      stopBtn.disabled = false;
+      setStatus('Camera ready — point at a barcode.');
+    } catch (e) {
+      setStatus('Camera error: ' + e, 'err');
+      startBtn.disabled = false;
+    }
+  });
+
+  stopBtn.addEventListener('click', async () => {
+    if (html5QrCode) {
+      await html5QrCode.stop();
+      html5QrCode.clear();
+    }
+    stopBtn.disabled = true;
+    startBtn.disabled = false;
+    setStatus('Camera stopped.');
+  });
+
+  render();
 </script>
 
 </body>
