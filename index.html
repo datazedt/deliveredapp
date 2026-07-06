@@ -235,12 +235,12 @@
 
 <div id="loginScreen" class="login-screen">
   <div class="login-box">
-    <h2>CONNECTER</h2>
+    <h2>Sign in</h2>
     <label for="loginUser">Username</label>
     <input id="loginUser" type="text" autocomplete="username">
     <label for="loginPass">Password</label>
     <input id="loginPass" type="password" autocomplete="current-password">
-    <button class="primary" id="loginBtn" style="margin-top:10px;width:100%;">CONNECTER</button>
+    <button class="primary" id="loginBtn" style="margin-top:10px;width:100%;">Sign in</button>
     <div id="loginError" class="login-error"></div>
   </div>
 </div>
@@ -248,15 +248,15 @@
 <div id="appScreen" style="display:none;">
 
 <header>
-  <h1>SCAN DELIVERED → TRACKINGS 1Z</h1>
+  <h1>Barcode → Sheet</h1>
   <p>Scan with your camera. Every code gets added as a new row.</p>
 </header>
 
 <div class="setup">
   <label for="stationInput">Station</label>
-  <input id="stationInput" type="text" placeholder="e.g. Station ods" autocomplete="off">
-  <label for="driverInput" style="margin-top:10px;">Coursier</label>
-  <input id="driverInput" type="text" placeholder="e.g. Mohammed amine" autocomplete="off">
+  <input id="stationInput" type="text" placeholder="e.g. Station 3" autocomplete="off">
+  <label for="driverInput" style="margin-top:10px;">Driver</label>
+  <input id="driverInput" type="text" placeholder="e.g. John Smith" autocomplete="off">
 </div>
 
 <div id="reader-wrap">
@@ -270,8 +270,21 @@
 </div>
 
 <div class="controls">
-  <button class="secondary" id="uploadBtn" style="flex:1;">Upload photo from gallery</button>
+  <button class="secondary" id="uploadBtn" style="flex:1;">Scan from photo</button>
   <input type="file" id="fileInput" accept="image/*" style="display:none;">
+</div>
+
+<div class="controls" id="manualRow">
+  <button class="secondary" id="manualBtn" style="flex:1;">Enter code manually</button>
+</div>
+
+<div class="setup" id="manualEntry" style="display:none;">
+  <label for="manualInput">Barcode / code</label>
+  <input id="manualInput" type="text" placeholder="Type the code here" autocomplete="off">
+  <div class="controls" style="margin:10px 0 0;">
+    <button class="primary" id="manualSubmitBtn" style="flex:1;">Add</button>
+    <button class="secondary" id="manualCancelBtn" style="flex:1;">Cancel</button>
+  </div>
 </div>
 
 <div class="log">
@@ -422,8 +435,61 @@
     render();
     sendToSheet(entry);
 
+    playBeep();
     if (navigator.vibrate) navigator.vibrate(80);
   }
+
+  // Short beep using the Web Audio API — no external sound file needed.
+  let audioCtx;
+  function playBeep() {
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = 1000;
+      gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.15);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.15);
+    } catch (e) {
+      // Audio not available — fail silently
+    }
+  }
+
+  // Manual code entry
+  const manualBtn = document.getElementById('manualBtn');
+  const manualEntry = document.getElementById('manualEntry');
+  const manualInput = document.getElementById('manualInput');
+  const manualSubmitBtn = document.getElementById('manualSubmitBtn');
+  const manualCancelBtn = document.getElementById('manualCancelBtn');
+
+  manualBtn.addEventListener('click', () => {
+    manualEntry.style.display = 'block';
+    manualInput.value = '';
+    manualInput.focus();
+  });
+
+  manualCancelBtn.addEventListener('click', () => {
+    manualEntry.style.display = 'none';
+  });
+
+  function submitManualCode() {
+    const code = manualInput.value.trim();
+    if (!code) {
+      manualInput.focus();
+      return;
+    }
+    // Bypass debounce so the same code can be re-entered manually if needed
+    lastCode = null;
+    onScanSuccess(code);
+    manualEntry.style.display = 'none';
+  }
+
+  manualSubmitBtn.addEventListener('click', submitManualCode);
+  manualInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitManualCode(); });
 
   const uploadBtn = document.getElementById('uploadBtn');
   const fileInput = document.getElementById('fileInput');
