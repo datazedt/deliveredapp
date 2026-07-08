@@ -363,7 +363,7 @@
   const entriesEl = document.getElementById('entries');
   const countLabel = document.getElementById('countLabel');
   const stationInput = document.getElementById('stationInput');
-  const driverInput = document.getElementById('driverInput');
+  const driverInput = `${document.getElementById('driverInput').value}-${loginUser.value}`;
 
   let html5QrCode;
   let lastCode = null;
