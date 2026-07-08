@@ -315,6 +315,7 @@
   const loginBtn = document.getElementById('loginBtn');
   const loginError = document.getElementById('loginError');
 
+  let loggedInUser = ''
   async function tryLogin() {
     const u = loginUser.value.trim();
     const p = loginPass.value;
@@ -335,6 +336,7 @@
       const data = await res.json();
 
       if (data.valid) {
+        loggedInUser = u
         sessionStorage.setItem('scannerLoggedIn', '1');
         loginScreen.style.display = 'none';
         appScreen.style.display = 'block';
@@ -353,6 +355,7 @@
 
   // Stay logged in for this browser tab session
   if (sessionStorage.getItem('scannerLoggedIn') === '1') {
+    loggedInUser = sessionStorage.getItem('scannerUser') || '';
     loginScreen.style.display = 'none';
     appScreen.style.display = 'block';
   }
@@ -363,7 +366,7 @@
   const entriesEl = document.getElementById('entries');
   const countLabel = document.getElementById('countLabel');
   const stationInput = document.getElementById('stationInput');
-  const driverInput = `${document.getElementById('driverInput').value}-${loginUser.value}`;
+  const driverInput = document.getElementById('driverInput');
 
   let html5QrCode;
   let lastCode = null;
@@ -408,7 +411,7 @@
           code: entry.code,
           timestamp: entry.timestamp,
           station: stationInput.value.trim(),
-          driver: driverInput.value.trim()
+          driver: driverInput.value.trim() + '-' + loggedInUser
         })
       });
       entry.status = 'sent';
